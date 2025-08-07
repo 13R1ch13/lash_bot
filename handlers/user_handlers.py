@@ -1,15 +1,15 @@
 from aiogram import Router, F
-from aiogram.types import Message, ReplyKeyboardRemove
+from aiogram.types import Message
 from aiogram.fsm.context import FSMContext
 from aiogram.filters import Command
 from keyboards.menu import main_menu
 from states.booking import BookingStates
 from services.services import services
+from db.database import save_appointment, get_user_appointments
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 import datetime
 
 router = Router()
-appointments = {}
 
 def service_keyboard():
     return ReplyKeyboardMarkup(
@@ -57,7 +57,7 @@ async def choose_service(message: Message, state: FSMContext):
 @router.message(BookingStates.choosing_date)
 async def choose_date(message: Message, state: FSMContext):
     try:
-        selected = datetime.datetime.strptime(message.text, "%Y-%m-%d").date()
+        datetime.datetime.strptime(message.text, "%Y-%m-%d").date()
     except:
         await message.answer("Пожалуйста, выбери дату из списка.")
         return
@@ -76,8 +76,28 @@ async def choose_time(message: Message, state: FSMContext):
         return
     await state.update_data(time=message.text)
     data = await state.get_data()
+
+    # Сохраняем в БД
+    save_appointment(
+        user_id=message.from_user.id,
+        username=message.from_user.username or "unknown",
+        service=data["service"],
+        date=data["date"],
+        time=data["time"]
+    )
+
     record = f"✅ Запись подтверждена:\nУслуга: {data['service']}\nДата: {data['date']}\nВремя: {data['time']}"
-    user_id = message.from_user.id
-    appointments.setdefault(user_id, []).append(record)
     await message.answer(record, reply_markup=main_menu())
     await state.clear()
+
+@router.message(F.text == "📅 Мои записи")
+async def show_my_appointments(message: Message):
+    records = get_user_appointments(message.from_user.id)
+    if not records:
+        await message.answer("У вас пока нет записей.")
+        return
+
+    text = "📋 Ваши записи:\n\n"
+    for service, date, time in records:
+        text += f"• {service} — {date} в {time}\n"
+    await message.answer(text)
