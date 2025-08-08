@@ -10,6 +10,8 @@ from db.database import (
     get_user_appointments,
     is_time_range_available,
     delete_user_appointment,
+    get_vacations,
+    is_vacation,
 )
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 import datetime
@@ -25,11 +27,13 @@ def service_keyboard():
 
 def date_keyboard():
     today = datetime.date.today()
+    vacations = set(get_vacations())
     dates = []
     for i in range(14):
         day = today + datetime.timedelta(days=i)
-        if day.weekday() in [0, 1, 3, 4, 5]:  # Пн, Вт, Чт, Пт, Сб
-            dates.append([KeyboardButton(text=day.strftime("%Y-%m-%d"))])
+        day_str = day.strftime("%Y-%m-%d")
+        if day.weekday() in [0, 1, 3, 4, 5] and day_str not in vacations:
+            dates.append([KeyboardButton(text=day_str)])
     dates.append([KeyboardButton(text="⬅️ Назад")])
     return ReplyKeyboardMarkup(keyboard=dates, resize_keyboard=True)
 
@@ -99,6 +103,10 @@ async def choose_date(message: Message, state: FSMContext):
 
     if selected_date < datetime.date.today():
         await message.answer("❌ Нельзя выбрать прошедшую дату.")
+        return
+
+    if is_vacation(message.text):
+        await message.answer("❌ В этот день мастер не работает. Выберите другую дату.")
         return
 
     await state.update_data(date=message.text)

@@ -17,6 +17,11 @@ def init_db():
                 time TEXT
             )
         """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS vacations (
+                date TEXT PRIMARY KEY
+            )
+        """)
         conn.commit()
 
 def save_appointment(user_id, username, service, date, time):
@@ -73,3 +78,31 @@ def delete_user_appointment(user_id, service, date, time):
             WHERE user_id = ? AND service = ? AND date = ? AND time = ?
         """, (user_id, service, date, time))
         conn.commit()
+
+
+def add_vacation(date):
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.cursor()
+        cursor.execute("INSERT OR IGNORE INTO vacations (date) VALUES (?)", (date,))
+        conn.commit()
+
+
+def remove_vacation(date):
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM vacations WHERE date = ?", (date,))
+        conn.commit()
+
+
+def get_vacations():
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT date FROM vacations")
+        return [row[0] for row in cursor.fetchall()]
+
+
+def is_vacation(date):
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT 1 FROM vacations WHERE date = ?", (date,))
+        return cursor.fetchone() is not None
