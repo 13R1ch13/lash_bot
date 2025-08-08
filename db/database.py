@@ -73,3 +73,16 @@ def delete_user_appointment(user_id, service, date, time):
             WHERE user_id = ? AND service = ? AND date = ? AND time = ?
         """, (user_id, service, date, time))
         conn.commit()
+
+
+def get_service_counts(start_date=None, end_date=None):
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.cursor()
+        query = "SELECT service, COUNT(*) FROM appointments"
+        params = []
+        if start_date and end_date:
+            query += " WHERE date BETWEEN ? AND ?"
+            params.extend([start_date, end_date])
+        query += " GROUP BY service"
+        cursor.execute(query, params)
+        return cursor.fetchall()
