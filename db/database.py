@@ -17,6 +17,14 @@ def init_db():
                 time TEXT
             )
         """)
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS users (
+                user_id INTEGER PRIMARY KEY,
+                username TEXT
+            )
+            """
+        )
         conn.commit()
 
 def save_appointment(user_id, username, service, date, time):
@@ -27,6 +35,24 @@ def save_appointment(user_id, username, service, date, time):
             VALUES (?, ?, ?, ?, ?)
         """, (user_id, username, service, date, time))
         conn.commit()
+
+def add_user(user_id, username):
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            INSERT OR REPLACE INTO users (user_id, username)
+            VALUES (?, ?)
+            """,
+            (user_id, username),
+        )
+        conn.commit()
+
+def get_all_user_ids():
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT user_id FROM users")
+        return [row[0] for row in cursor.fetchall()]
 
 def get_user_appointments(user_id):
     with sqlite3.connect(DB_PATH) as conn:

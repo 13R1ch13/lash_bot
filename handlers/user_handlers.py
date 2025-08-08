@@ -1,18 +1,26 @@
-from aiogram import Router, F
-from aiogram.types import Message
-from aiogram.fsm.context import FSMContext
+import asyncio
+import datetime
+import logging
+
+from aiogram import F, Router
+from aiogram.exceptions import TelegramAPIError, TelegramRetryAfter
 from aiogram.filters import Command
-from keyboards.menu import main_menu
-from states.booking import BookingStates
-from services.services import services
+from aiogram.fsm.context import FSMContext
+from aiogram.types import KeyboardButton, Message, ReplyKeyboardMarkup
+
+from bot import bot
+from config import ADMIN_ID
 from db.database import (
-    save_appointment,
+    add_user,
+    delete_user_appointment,
+    get_all_user_ids,
     get_user_appointments,
     is_time_range_available,
-    delete_user_appointment,
+    save_appointment,
 )
-from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
-import datetime
+from keyboards.menu import main_menu
+from services.services import services
+from states.booking import BookingStates
 
 router = Router()
 
@@ -56,7 +64,11 @@ def time_keyboard(date, service_minutes):
 # ---------- Старт ----------
 @router.message(Command("start"))
 async def start_handler(message: Message):
-    await message.answer("Привет! Я бот для записи к мастеру. Выберите действие:", reply_markup=main_menu())
+    add_user(message.from_user.id, message.from_user.username or "unknown")
+    await message.answer(
+        "Привет! Я бот для записи к мастеру. Выберите действие:",
+        reply_markup=main_menu(),
+    )
 
 # ---------- Запись: старт ----------
 @router.message(F.text == "📝 Записаться")
@@ -199,3 +211,30 @@ async def confirm_cancel(message: Message, state: FSMContext):
     delete_user_appointment(message.from_user.id, service, date, time)
     await message.answer("❌ Запись отменена.", reply_markup=main_menu())
     await state.clear()
+
+# ---------- Админ: рассылка ----------
+@router.message(Command("broadcast"))
+async def admin_broadcast(message: Message):
+    if message.from_user.id != ADMIN_ID:
+        return
+    parts = message.text.split(maxsplit=1)
+    if len(parts) < 2:
+        await message.answer("Укажите текст после команды.")
+        return
+
+    text = parts[1]
+    user_ids = get_all_user_ids()
+    for uid in user_ids:
+        try:
+            await bot.send_message(uid, text)
+            await asyncio.sleep(0.05)
+        except TelegramRetryAfter as e:
+            await asyncio.sleep(e.retry_after)
+            try:
+                await bot.send_message(uid, text)
+            except TelegramAPIError as err:
+                logging.exception(f"Failed to send message to {uid}: {err}")
+        except TelegramAPIError as e:
+            logging.exception(f"Failed to send message to {uid}: {e}")
+
+    await message.answer("Рассылка завершена.")
