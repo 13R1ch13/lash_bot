@@ -1,13 +1,18 @@
 from aiogram import Router, F
 from aiogram.filters import Command
-from aiogram.types import Message
+from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton
 from aiogram.fsm.context import FSMContext
 from datetime import datetime, timedelta
 from config import ADMIN_IDS
 from bot import bot
 from db.user_storage import get_all_users
 import logging
-from db.database import get_service_counts, add_vacation_date
+from db.database import (
+    get_service_counts,
+    add_vacation_date,
+    get_upcoming_appointments,
+    delete_appointment_by_id,
+)
 from services.services import services
 from keyboards.admin_menu import admin_menu
 from states.admin import AdminStates
@@ -140,6 +145,46 @@ async def send_stats(message: Message, state: FSMContext):
     text += f"\n\nВсего часов: {hours:.1f}"
     header = f"Статистика с {start} по {message.text}:"
     await message.answer(f"{header}\n{text}")
+    await state.clear()
+
+
+@router.message(F.text == "✍️ Записи")
+async def show_records(message: Message, state: FSMContext):
+    if message.from_user.id not in ADMIN_IDS:
+        return
+    records = await get_upcoming_appointments()
+    if not records:
+        await message.answer("Ближайших записей нет.")
+        return
+    text = "Ближайшие записи:\n\n"
+    keyboard = []
+    for rec_id, user_id, username, service, date, time in records:
+        user_display = f"@{username}" if username else str(user_id)
+        text += f"{rec_id}: {date} {time} — {service} — {user_display}\n"
+        keyboard.append([KeyboardButton(text=str(rec_id))])
+    keyboard.append([KeyboardButton(text="⬅️ Назад")])
+    await message.answer(
+        text + "\nВведите номер записи для удаления:",
+        reply_markup=ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True),
+    )
+    await state.set_state(AdminStates.view_records)
+
+
+@router.message(AdminStates.view_records)
+async def delete_record(message: Message, state: FSMContext):
+    if message.from_user.id not in ADMIN_IDS:
+        return
+    if message.text == "⬅️ Назад":
+        await message.answer("Админ‑панель:", reply_markup=admin_menu())
+        await state.clear()
+        return
+    try:
+        record_id = int(message.text)
+    except ValueError:
+        await message.answer("Пожалуйста, выберите номер записи из списка или нажмите '⬅️ Назад'.")
+        return
+    await delete_appointment_by_id(record_id)
+    await message.answer("Запись удалена.")
     await state.clear()
 
 
