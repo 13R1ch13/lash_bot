@@ -1,13 +1,13 @@
-import sqlite3
+import aiosqlite
 from datetime import datetime, timedelta
 from services.services import services
 
 DB_PATH = "appointments.db"
 
-def init_db():
-    with sqlite3.connect(DB_PATH) as conn:
-        cursor = conn.cursor()
-        cursor.execute("""
+async def init_db():
+    async with aiosqlite.connect(DB_PATH) as conn:
+        await conn.execute(
+            """
             CREATE TABLE IF NOT EXISTS appointments (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id INTEGER,
@@ -16,38 +16,45 @@ def init_db():
                 date TEXT,
                 time TEXT
             )
-        """)
-        conn.commit()
+            """
+        )
+        await conn.commit()
 
-def save_appointment(user_id, username, service, date, time):
-    with sqlite3.connect(DB_PATH) as conn:
-        cursor = conn.cursor()
-        cursor.execute("""
+async def save_appointment(user_id, username, service, date, time):
+    async with aiosqlite.connect(DB_PATH) as conn:
+        await conn.execute(
+            """
             INSERT INTO appointments (user_id, username, service, date, time)
             VALUES (?, ?, ?, ?, ?)
-        """, (user_id, username, service, date, time))
-        conn.commit()
+            """,
+            (user_id, username, service, date, time),
+        )
+        await conn.commit()
 
-def get_user_appointments(user_id):
-    with sqlite3.connect(DB_PATH) as conn:
-        cursor = conn.cursor()
-        cursor.execute("""
+async def get_user_appointments(user_id):
+    async with aiosqlite.connect(DB_PATH) as conn:
+        cursor = await conn.execute(
+            """
             SELECT service, date, time FROM appointments
             WHERE user_id = ?
             ORDER BY date, time
-        """, (user_id,))
-        return cursor.fetchall()
+            """,
+            (user_id,),
+        )
+        return await cursor.fetchall()
 
-def get_appointments_for_date(date):
-    with sqlite3.connect(DB_PATH) as conn:
-        cursor = conn.cursor()
-        cursor.execute("""
+async def get_appointments_for_date(date):
+    async with aiosqlite.connect(DB_PATH) as conn:
+        cursor = await conn.execute(
+            """
             SELECT time, service FROM appointments
             WHERE date = ?
-        """, (date,))
-        return cursor.fetchall()
+            """,
+            (date,),
+        )
+        return await cursor.fetchall()
 
-def is_time_range_available(date, start_time_str, duration_minutes):
+async def is_time_range_available(date, start_time_str, duration_minutes):
     """
     Проверяет, что выбранное время + длительность услуги
     не пересекаются с уже записанными процедурами в этот день
@@ -55,7 +62,7 @@ def is_time_range_available(date, start_time_str, duration_minutes):
     start_time = datetime.strptime(start_time_str, "%H:%M")
     end_time = start_time + timedelta(minutes=duration_minutes)
 
-    appointments = get_appointments_for_date(date)
+    appointments = await get_appointments_for_date(date)
 
     for booked_time_str, service in appointments:
         booked_start = datetime.strptime(booked_time_str, "%H:%M")
@@ -65,24 +72,26 @@ def is_time_range_available(date, start_time_str, duration_minutes):
             return False
 
     return True
-def delete_user_appointment(user_id, service, date, time):
-    with sqlite3.connect(DB_PATH) as conn:
-        cursor = conn.cursor()
-        cursor.execute("""
+
+async def delete_user_appointment(user_id, service, date, time):
+    async with aiosqlite.connect(DB_PATH) as conn:
+        await conn.execute(
+            """
             DELETE FROM appointments
             WHERE user_id = ? AND service = ? AND date = ? AND time = ?
-        """, (user_id, service, date, time))
-        conn.commit()
+            """,
+            (user_id, service, date, time),
+        )
+        await conn.commit()
 
 
-def get_service_counts(start_date=None, end_date=None):
-    with sqlite3.connect(DB_PATH) as conn:
-        cursor = conn.cursor()
+async def get_service_counts(start_date=None, end_date=None):
+    async with aiosqlite.connect(DB_PATH) as conn:
         query = "SELECT service, COUNT(*) FROM appointments"
         params = []
         if start_date and end_date:
             query += " WHERE date BETWEEN ? AND ?"
             params.extend([start_date, end_date])
         query += " GROUP BY service"
-        cursor.execute(query, params)
-        return cursor.fetchall()
+        cursor = await conn.execute(query, params)
+        return await cursor.fetchall()

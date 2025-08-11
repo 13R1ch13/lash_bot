@@ -33,7 +33,7 @@ def date_keyboard():
     dates.append([KeyboardButton(text="⬅️ Назад")])
     return ReplyKeyboardMarkup(keyboard=dates, resize_keyboard=True)
 
-def time_keyboard(date, service_minutes):
+async def time_keyboard(date, service_minutes):
     times = []
     for h in range(9, 19):
         for m in (0, 30):
@@ -45,7 +45,7 @@ def time_keyboard(date, service_minutes):
                 continue
 
             start_str = start.strftime("%H:%M")
-            if is_time_range_available(date, start_str, service_minutes):
+            if await is_time_range_available(date, start_str, service_minutes):
                 times.append([KeyboardButton(text=start_str)])
 
     if not times:
@@ -105,9 +105,10 @@ async def choose_date(message: Message, state: FSMContext):
     data = await state.get_data()
     duration = services[data['service']]
 
+    keyboard = await time_keyboard(message.text, duration)
     await message.answer(
         f"Вы выбрали: {message.text}\nТеперь выберите время:",
-        reply_markup=time_keyboard(message.text, duration)
+        reply_markup=keyboard,
     )
     await state.set_state(BookingStates.choosing_time)
 
@@ -133,16 +134,16 @@ async def choose_time(message: Message, state: FSMContext):
     data = await state.get_data()
 
     duration = services[data['service']]
-    if not is_time_range_available(data["date"], data["time"], duration):
+    if not await is_time_range_available(data["date"], data["time"], duration):
         await message.answer("⛔ Это время уже занято. Пожалуйста, выбери другое.")
         return
 
-    save_appointment(
+    await save_appointment(
         user_id=message.from_user.id,
         username=message.from_user.username or "unknown",
         service=data["service"],
         date=data["date"],
-        time=data["time"]
+        time=data["time"],
     )
 
     record = f"✅ Запись подтверждена:\nУслуга: {data['service']}\nДата: {data['date']}\nВремя: {data['time']}"
@@ -152,7 +153,7 @@ async def choose_time(message: Message, state: FSMContext):
 # ---------- Просмотр записей ----------
 @router.message(F.text == "📅 Мои записи")
 async def show_my_appointments(message: Message):
-    records = get_user_appointments(message.from_user.id)
+    records = await get_user_appointments(message.from_user.id)
     if not records:
         await message.answer("У вас пока нет записей.")
         return
@@ -165,7 +166,7 @@ async def show_my_appointments(message: Message):
 # ---------- Отмена записи ----------
 @router.message(F.text == "❌ Отменить запись")
 async def cancel_booking(message: Message, state: FSMContext):
-    records = get_user_appointments(message.from_user.id)
+    records = await get_user_appointments(message.from_user.id)
     if not records:
         await message.answer("У вас нет активных записей.")
         return
@@ -196,6 +197,6 @@ async def confirm_cancel(message: Message, state: FSMContext):
         await message.answer("Формат записи неверный. Пожалуйста, выберите из списка.")
         return
 
-    delete_user_appointment(message.from_user.id, service, date, time)
+    await delete_user_appointment(message.from_user.id, service, date, time)
     await message.answer("❌ Запись отменена.", reply_markup=main_menu())
     await state.clear()
