@@ -136,6 +136,31 @@ async def delete_user_appointment(user_id, service, date, time):
         await conn.commit()
 
 
+async def get_upcoming_appointments(days: int = 7):
+    async with aiosqlite.connect(DB_PATH) as conn:
+        start = datetime.today().date()
+        end = start + timedelta(days=days)
+        cursor = await conn.execute(
+            """
+            SELECT id, user_id, username, service, date, time
+            FROM appointments
+            WHERE date BETWEEN ? AND ?
+            ORDER BY date, time
+            """,
+            (start.strftime("%Y-%m-%d"), end.strftime("%Y-%m-%d")),
+        )
+        return await cursor.fetchall()
+
+
+async def delete_appointment_by_id(appointment_id: int):
+    async with aiosqlite.connect(DB_PATH) as conn:
+        await conn.execute(
+            "DELETE FROM appointments WHERE id = ?",
+            (appointment_id,),
+        )
+        await conn.commit()
+
+
 async def get_service_counts(start_date=None, end_date=None):
     async with aiosqlite.connect(DB_PATH) as conn:
         query = "SELECT service, COUNT(*) FROM appointments"
