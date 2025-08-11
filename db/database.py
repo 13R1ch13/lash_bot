@@ -7,7 +7,8 @@ DB_PATH = "appointments.db"
 def init_db():
     with sqlite3.connect(DB_PATH) as conn:
         cursor = conn.cursor()
-        cursor.execute("""
+        cursor.execute(
+            """
             CREATE TABLE IF NOT EXISTS appointments (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id INTEGER,
@@ -16,8 +17,35 @@ def init_db():
                 date TEXT,
                 time TEXT
             )
-        """)
+            """
+        )
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY,
+                username TEXT
+            )
+            """
+        )
         conn.commit()
+
+def save_user(user_id, username):
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            INSERT OR REPLACE INTO users (id, username)
+            VALUES (?, ?)
+            """,
+            (user_id, username),
+        )
+        conn.commit()
+
+def get_all_users():
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT id, username FROM users")
+        return cursor.fetchall()
 
 def save_appointment(user_id, username, service, date, time):
     with sqlite3.connect(DB_PATH) as conn:

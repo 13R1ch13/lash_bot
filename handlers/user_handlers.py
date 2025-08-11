@@ -6,6 +6,7 @@ from keyboards.menu import main_menu
 from states.booking import BookingStates
 from services.services import services
 from db.database import (
+    save_user,
     save_appointment,
     get_user_appointments,
     is_time_range_available,
@@ -56,7 +57,11 @@ def time_keyboard(date, service_minutes):
 # ---------- Старт ----------
 @router.message(Command("start"))
 async def start_handler(message: Message):
-    await message.answer("Привет! Я бот для записи к мастеру. Выберите действие:", reply_markup=main_menu())
+    save_user(message.from_user.id, message.from_user.username or "unknown")
+    await message.answer(
+        "Привет! Я бот для записи к мастеру. Выберите действие:",
+        reply_markup=main_menu(),
+    )
 
 # ---------- Запись: старт ----------
 @router.message(F.text == "📝 Записаться")
