@@ -26,6 +26,13 @@ async def init_db():
             )
             """
         )
+        await conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS vacations (
+                date TEXT
+            )
+            """
+        )
         await conn.commit()
 
 async def save_user(user_id, username):
@@ -78,11 +85,30 @@ async def get_appointments_for_date(date):
         )
         return await cursor.fetchall()
 
+
+async def add_vacation_date(date):
+    async with aiosqlite.connect(DB_PATH) as conn:
+        await conn.execute(
+            "INSERT INTO vacations (date) VALUES (?)",
+            (date,),
+        )
+        await conn.commit()
+
+
+async def get_vacation_dates():
+    async with aiosqlite.connect(DB_PATH) as conn:
+        cursor = await conn.execute("SELECT date FROM vacations")
+        rows = await cursor.fetchall()
+        return [row[0] for row in rows]
+
 async def is_time_range_available(date, start_time_str, duration_minutes):
     """
     Проверяет, что выбранное время + длительность услуги
     не пересекаются с уже записанными процедурами в этот день
     """
+    if date in await get_vacation_dates():
+        return False
+
     start_time = datetime.strptime(start_time_str, "%H:%M")
     end_time = start_time + timedelta(minutes=duration_minutes)
 

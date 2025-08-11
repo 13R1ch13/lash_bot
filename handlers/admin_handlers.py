@@ -1,11 +1,13 @@
-from aiogram import Router
+from aiogram import Router, F
 from aiogram.filters import Command
 from aiogram.types import Message
+from aiogram.fsm.context import FSMContext
+from datetime import datetime, timedelta
 from config import ADMIN_IDS
 from bot import bot
 from db.user_storage import get_all_users
 import logging
-from db.database import get_service_counts
+from db.database import get_service_counts, add_vacation_date
 from services.services import services
 from keyboards.admin_menu import admin_menu
 from states.admin import AdminStates
@@ -62,3 +64,47 @@ async def broadcast(message: Message):
         except Exception as e:
             logging.exception(f"Failed to send broadcast to {user_id}: {e}")
     await message.answer("Рассылка завершена.")
+
+
+@router.message(F.text == "🏖 Отпуск")
+async def vacation_start(message: Message, state: FSMContext):
+    if message.from_user.id not in ADMIN_IDS:
+        return
+    await message.answer("Введите дату начала отпуска (YYYY-MM-DD):")
+    await state.set_state(AdminStates.vacation_start)
+
+
+@router.message(AdminStates.vacation_start)
+async def vacation_end(message: Message, state: FSMContext):
+    if message.from_user.id not in ADMIN_IDS:
+        return
+    try:
+        start = datetime.strptime(message.text, "%Y-%m-%d").date()
+    except ValueError:
+        await message.answer("Неверный формат даты. Используйте YYYY-MM-DD")
+        return
+    await state.update_data(vacation_start=start)
+    await message.answer("Введите дату окончания отпуска (YYYY-MM-DD):")
+    await state.set_state(AdminStates.vacation_end)
+
+
+@router.message(AdminStates.vacation_end)
+async def save_vacation(message: Message, state: FSMContext):
+    if message.from_user.id not in ADMIN_IDS:
+        return
+    data = await state.get_data()
+    try:
+        end = datetime.strptime(message.text, "%Y-%m-%d").date()
+    except ValueError:
+        await message.answer("Неверный формат даты. Используйте YYYY-MM-DD")
+        return
+    start = data.get("vacation_start")
+    if end < start:
+        await message.answer("Дата окончания не может быть раньше начала. Попробуйте снова.")
+        return
+    current = start
+    while current <= end:
+        await add_vacation_date(current.strftime("%Y-%m-%d"))
+        current += timedelta(days=1)
+    await message.answer(f"Отпуск добавлен с {start} по {end}.")
+    await state.clear()

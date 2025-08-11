@@ -11,6 +11,7 @@ from db.database import (
     get_user_appointments,
     is_time_range_available,
     delete_user_appointment,
+    get_vacation_dates,
 )
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 import datetime
@@ -24,13 +25,15 @@ def service_keyboard():
         resize_keyboard=True
     )
 
-def date_keyboard():
+async def date_keyboard():
     today = datetime.date.today()
+    vacations = set(await get_vacation_dates())
     dates = []
     for i in range(14):
         day = today + datetime.timedelta(days=i)
-        if day.weekday() in [0, 1, 3, 4, 5]:  # Пн, Вт, Чт, Пт, Сб
-            dates.append([KeyboardButton(text=day.strftime("%Y-%m-%d"))])
+        day_str = day.strftime("%Y-%m-%d")
+        if day.weekday() in [0, 1, 3, 4, 5] and day_str not in vacations:
+            dates.append([KeyboardButton(text=day_str)])
     dates.append([KeyboardButton(text="⬅️ Назад")])
     return ReplyKeyboardMarkup(keyboard=dates, resize_keyboard=True)
 
@@ -84,7 +87,7 @@ async def choose_service(message: Message, state: FSMContext):
     await state.update_data(service=message.text)
     await message.answer(
         "📅 Выберите дату из списка или введите вручную в формате: 2025-09-01",
-        reply_markup=date_keyboard()
+        reply_markup=await date_keyboard()
     )
     await state.set_state(BookingStates.choosing_date)
 
@@ -106,6 +109,10 @@ async def choose_date(message: Message, state: FSMContext):
         await message.answer("❌ Нельзя выбрать прошедшую дату.")
         return
 
+    if message.text in await get_vacation_dates():
+        await message.answer("❌ В этот день мастер в отпуске. Выберите другую дату.")
+        return
+
     await state.update_data(date=message.text)
     data = await state.get_data()
     duration = services[data['service']]
@@ -123,7 +130,7 @@ async def choose_time(message: Message, state: FSMContext):
         data = await state.get_data()
         await message.answer(
             "📅 Выберите дату из списка или введите вручную в формате: 2025-09-01",
-            reply_markup=date_keyboard()
+            reply_markup=await date_keyboard()
         )
         await state.set_state(BookingStates.choosing_date)
         return
