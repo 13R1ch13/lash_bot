@@ -66,6 +66,61 @@ async def broadcast(message: Message):
     await message.answer("Рассылка завершена.")
 
 
+@router.message(F.text == "📊 Статистика")
+async def stats_period_start(message: Message, state: FSMContext):
+    if message.from_user.id not in ADMIN_IDS:
+        return
+    await message.answer("Введите дату начала периода (YYYY-MM-DD):")
+    await state.set_state(AdminStates.stats_start)
+
+
+@router.message(AdminStates.stats_start)
+async def stats_period_end(message: Message, state: FSMContext):
+    if message.from_user.id not in ADMIN_IDS:
+        return
+    try:
+        datetime.strptime(message.text, "%Y-%m-%d")
+    except ValueError:
+        await message.answer("Неверный формат даты. Используйте YYYY-MM-DD")
+        return
+    await state.update_data(stats_start=message.text)
+    await message.answer("Введите дату окончания периода (YYYY-MM-DD):")
+    await state.set_state(AdminStates.stats_end)
+
+
+@router.message(AdminStates.stats_end)
+async def send_stats(message: Message, state: FSMContext):
+    if message.from_user.id not in ADMIN_IDS:
+        return
+    data = await state.get_data()
+    start = data.get("stats_start")
+    try:
+        start_date = datetime.strptime(start, "%Y-%m-%d")
+        end_date = datetime.strptime(message.text, "%Y-%m-%d")
+    except ValueError:
+        await message.answer("Неверный формат даты. Используйте YYYY-MM-DD")
+        return
+    if end_date < start_date:
+        await message.answer("Дата окончания не может быть раньше начала. Попробуйте снова.")
+        return
+    counts = await get_service_counts(start, message.text)
+    if not counts:
+        await message.answer("Записей не найдено.")
+        await state.clear()
+        return
+    total_minutes = 0
+    lines = []
+    for service, count in counts:
+        lines.append(f"{service}: {count}")
+        total_minutes += count * services.get(service, 0)
+    text = "\n".join(lines)
+    hours = total_minutes / 60
+    text += f"\n\nВсего часов: {hours:.1f}"
+    header = f"Статистика с {start} по {message.text}:"
+    await message.answer(f"{header}\n{text}")
+    await state.clear()
+
+
 @router.message(F.text == "🏖 Отпуск")
 async def vacation_start(message: Message, state: FSMContext):
     if message.from_user.id not in ADMIN_IDS:
