@@ -66,6 +66,28 @@ async def broadcast(message: Message):
     await message.answer("Рассылка завершена.")
 
 
+@router.message(F.text == "📣 Рассылка")
+async def broadcast_prompt(message: Message, state: FSMContext):
+    if message.from_user.id not in ADMIN_IDS:
+        return
+    await message.answer("Введите текст рассылки:")
+    await state.set_state(AdminStates.broadcast_message)
+
+
+@router.message(AdminStates.broadcast_message)
+async def process_broadcast(message: Message, state: FSMContext):
+    if message.from_user.id not in ADMIN_IDS:
+        return
+    user_ids = get_all_users()
+    for user_id in user_ids:
+        try:
+            await bot.send_message(user_id, message.text)
+        except Exception as e:
+            logging.exception(f"Failed to send broadcast to {user_id}: {e}")
+    await message.answer("Рассылка завершена.")
+    await state.clear()
+
+
 @router.message(F.text == "📊 Статистика")
 async def stats_period_start(message: Message, state: FSMContext):
     if message.from_user.id not in ADMIN_IDS:
