@@ -20,7 +20,7 @@ async def stats(message: Message):
     if len(parts) == 3:
         start_date, end_date = parts[1], parts[2]
 
-    counts = get_service_counts(start_date, end_date)
+    counts = await get_service_counts(start_date, end_date)
     if not counts:
         await message.answer("Записей не найдено.")
         return
