@@ -6,3 +6,5 @@ class AdminStates(StatesGroup):
     view_records = State()
     vacation_start = State()
     vacation_end = State()
+    stats_start = State()
+    stats_end = State()
