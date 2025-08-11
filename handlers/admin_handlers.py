@@ -7,8 +7,16 @@ from db.user_storage import get_all_users
 import logging
 from db.database import get_service_counts
 from services.services import services
+from keyboards.admin_menu import admin_menu
+from states.admin import AdminStates
 
 router = Router()
+
+@router.message(Command("admin"))
+async def admin_panel(message: Message):
+    if message.from_user.id not in ADMIN_IDS:
+        return
+    await message.answer("Админ‑панель:", reply_markup=admin_menu())
 
 @router.message(Command("stats"))
 async def stats(message: Message):
