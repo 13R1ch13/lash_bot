@@ -120,3 +120,38 @@ async def get_service_counts(start_date=None, end_date=None):
         query += " GROUP BY service"
         cursor = await conn.execute(query, params)
         return await cursor.fetchall()
+
+
+async def get_all_appointments():
+    async with aiosqlite.connect(DB_PATH) as conn:
+        cursor = await conn.execute(
+            """
+            SELECT id, user_id, username, service, date, time
+            FROM appointments
+            ORDER BY date, time
+            """
+        )
+        return await cursor.fetchall()
+
+
+async def update_appointment(appointment_id, service=None, date=None, time=None):
+    fields = []
+    params = []
+    if service is not None:
+        fields.append("service = ?")
+        params.append(service)
+    if date is not None:
+        fields.append("date = ?")
+        params.append(date)
+    if time is not None:
+        fields.append("time = ?")
+        params.append(time)
+    if not fields:
+        return
+    params.append(appointment_id)
+    async with aiosqlite.connect(DB_PATH) as conn:
+        await conn.execute(
+            f"UPDATE appointments SET {', '.join(fields)} WHERE id = ?",
+            params,
+        )
+        await conn.commit()
