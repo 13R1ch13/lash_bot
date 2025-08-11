@@ -9,3 +9,12 @@ def main_menu():
         ],
         resize_keyboard=True
     )
+
+
+def admin_menu():
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="📣 Рассылка")]
+        ],
+        resize_keyboard=True
+    )
