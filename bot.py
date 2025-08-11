@@ -1,6 +1,8 @@
 from aiogram import Bot, Dispatcher
-from config import BOT_TOKEN
-from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.fsm.storage.redis import RedisStorage
+from config import BOT_TOKEN, REDIS_HOST, REDIS_PORT, REDIS_DB
 
 bot = Bot(token=BOT_TOKEN)
-dp = Dispatcher(storage=MemoryStorage())
+redis_url = f"redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}"
+storage = RedisStorage.from_url(redis_url)
+dp = Dispatcher(storage=storage)
